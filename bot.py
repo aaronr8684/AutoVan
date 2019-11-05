@@ -3,6 +3,8 @@ import traceback
 import discord
 import logging
 import config
+import time
+import datetime
 
 delChannels = ['577171849658630163', '635873087778455583'] # IDs of channels to watch for delete (prod)
 # delChannels = ['635873087778455583'] # IDs of channels to watch for delete (test)
@@ -18,6 +20,21 @@ bot = discord.Client()
 @bot.event
 async def on_ready():
     print('We have logged in as {0.user}'.format(bot))
+    print('Getting existing messages for delete...')
+    for c in delChannels:
+        async for msg in bot.get_channel(int(c)).history():
+            print('Found: {} ({})'.format(msg.content, msg.author))
+            if msg.author.bot:
+                print('Ignoring bot message - {}'.format(msg.content))
+            else:
+                if (datetime.datetime.utcnow() - msg.created_at) > datetime.timedelta(seconds=delDelay):
+                    await msg.delete()
+                    print('Deleted (author): {} ({})'.format(msg.content, msg.author))
+                else:
+                    newDelTime = (datetime.timedelta(seconds=delDelay) - (datetime.datetime.utcnow() - msg.created_at)).total_seconds()
+                    await msg.delete(delay= newDelTime)
+                    print('Queued for delete in {:.1f} seconds (author): {} ({})'.format(newDelTime, msg.content, msg.author))
+
 
 @bot.event
 async def on_message(message):
@@ -37,7 +54,7 @@ async def on_message(message):
             print("Delete failed for {}'s message - Err: {} / {}".format(message.author, sys.exc_info()[0], sys.exc_info()[1]))
             traceback.print_tb(sys.exc_info()[2])
         else:
-            print('Message queued for delete (author): {} ({})'.format(message.content, message.author))
+            print('Queued for delete (author): {} ({})'.format(message.content, message.author))
         # print('Deleted message from {}'.format(message.author))
 
     if message.content.startswith('!ping'):
